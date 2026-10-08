@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Панель директора - Статистика</title>
+    <title>Панель директора (Онлайн)</title>
     <style>
         * { box-sizing: border-box; margin: 0; padding: 0; font-family: 'Segoe UI', Arial, sans-serif; }
         body { background-color: #f8fafc; padding: 20px; color: #0f172a; }
@@ -21,22 +21,19 @@
         .badge-warning { background-color: #d97706; }
         .badge-danger { background-color: #dc2626; }
         .badge-success { background-color: #16a34a; }
-        .badge-secondary { background-color: #94a3b8; }
-        .btn-refresh { background: #0284c7; color: white; border: none; padding: 8px 16px; border-radius: 6px; cursor: pointer; float: right; }
+        .status-online { color: #16a34a; font-weight: bold; font-size: 14px; float: right; }
     </style>
 </head>
 <body>
 
 <div class="container">
-    <button class="btn-refresh" onclick="loadData()">Обновить данные</button>
+    <span class="status-online">● Live-Синхронизация</span>
     <h1>Панель директора школы</h1>
 
     <!-- ТОП 3 КЛАССА -->
     <div class="card">
         <h2>ТОП-3 лучших классов (За неделю)</h2>
-        <div class="top-cards" id="topClasses">
-            <!-- Динамически заполняется -->
-        </div>
+        <div class="top-cards" id="topClasses"></div>
     </div>
 
     <!-- СТАЦИОНАР ЗА СЕГОДНЯ -->
@@ -76,35 +73,38 @@
     </div>
 </div>
 
-<script>
-    function loadData() {
-        const db = JSON.parse(localStorage.getItem('attendanceDB')) || [];
-        const today = new Date().toISOString().split('T')[0];
+<!-- Firebase SDK -->
+<script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
+<script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-database.js"></script>
 
-        // 1. Сегодняшние данные
+<script>
+    // Firebase sozlamalarini bu yerga qo'ying:
+    const firebaseConfig = {
+        databaseURL: "https://YOUR_PROJECT_ID-default-rtdb.firebaseio.com"
+    };
+    firebase.initializeApp(firebaseConfig);
+    const database = firebase.database();
+
+    const today = new Date().toISOString().split('T')[0];
+
+    // REAL-TIME UPDATES (Telefondan yuborilgani bilan avto yangilanadi)
+    database.ref('attendance').on('value', (snapshot) => {
+        const allData = snapshot.val() || {};
+        
+        // 1. Bugungi ma'lumotlar
+        const todayData = allData[today] || {};
         const todayBody = document.getElementById('todayTableBody');
         todayBody.innerHTML = '';
-        const todayRecords = db.filter(r => r.date === today);
 
-        todayRecords.forEach(r => {
-            const l1 = r.lesson1 !== null ? r.lesson1 : '-';
-            const l2 = r.lesson2 !== null ? r.lesson2 : '-';
-            const lLast = r.lessonLast !== null ? r.lessonLast : '-';
+        Object.values(todayData).forEach(r => {
+            const l1 = r.lesson1 !== undefined && r.lesson1 !== null ? r.lesson1 : '-';
+            const l2 = r.lesson2 !== undefined && r.lesson2 !== null ? r.lesson2 : '-';
+            const lLast = r.lessonLast !== undefined && r.lessonLast !== null ? r.lessonLast : '-';
 
-            // Расчет опоздавших
-            let late = 0;
-            if (r.lesson1 !== null && r.lesson2 !== null && r.lesson2 > r.lesson1) {
-                late = r.lesson2 - r.lesson1;
-            }
-
-            // Расчет сбежавших
-            let escaped = 0;
+            let late = (r.lesson1 !== null && r.lesson2 !== null && r.lesson2 > r.lesson1) ? (r.lesson2 - r.lesson1) : 0;
             let maxPresent = Math.max(r.lesson1 || 0, r.lesson2 || 0);
-            if (maxPresent > 0 && r.lessonLast !== null && maxPresent > r.lessonLast) {
-                escaped = maxPresent - r.lessonLast;
-            }
+            let escaped = (maxPresent > 0 && r.lessonLast !== null && maxPresent > r.lessonLast) ? (maxPresent - r.lessonLast) : 0;
 
-            // Расчет процента
             let percent = 0;
             if (maxPresent > 0 && r.total > 0) {
                 percent = Math.round((maxPresent / r.total) * 100);
@@ -125,25 +125,27 @@
             `;
         });
 
-        // 2. Недельная статистика и ТОП-3
+        // 2. Haftalik va Top-3 statistikani hisoblash
         const classAggregates = {};
 
-        db.forEach(r => {
-            if (!classAggregates[r.className]) {
-                classAggregates[r.className] = { totalPercent: 0, count: 0, late: 0, escaped: 0 };
-            }
+        Object.keys(allData).forEach(date => {
+            Object.values(allData[date]).forEach(r => {
+                if (!classAggregates[r.className]) {
+                    classAggregates[r.className] = { totalPercent: 0, count: 0, late: 0, escaped: 0 };
+                }
 
-            let maxPresent = Math.max(r.lesson1 || 0, r.lesson2 || 0);
-            let percent = (maxPresent > 0 && r.total > 0) ? Math.round((maxPresent / r.total) * 100) : 0;
-            if (percent > 100) percent = 100;
+                let maxPresent = Math.max(r.lesson1 || 0, r.lesson2 || 0);
+                let percent = (maxPresent > 0 && r.total > 0) ? Math.round((maxPresent / r.total) * 100) : 0;
+                if (percent > 100) percent = 100;
 
-            let late = (r.lesson1 !== null && r.lesson2 !== null && r.lesson2 > r.lesson1) ? (r.lesson2 - r.lesson1) : 0;
-            let escaped = (maxPresent > 0 && r.lessonLast !== null && maxPresent > r.lessonLast) ? (maxPresent - r.lessonLast) : 0;
+                let late = (r.lesson1 !== null && r.lesson2 !== null && r.lesson2 > r.lesson1) ? (r.lesson2 - r.lesson1) : 0;
+                let escaped = (maxPresent > 0 && r.lessonLast !== null && maxPresent > r.lessonLast) ? (maxPresent - r.lessonLast) : 0;
 
-            classAggregates[r.className].totalPercent += percent;
-            classAggregates[r.className].count += 1;
-            classAggregates[r.className].late += late;
-            classAggregates[r.className].escaped += escaped;
+                classAggregates[r.className].totalPercent += percent;
+                classAggregates[r.className].count += 1;
+                classAggregates[r.className].late += late;
+                classAggregates[r.className].escaped += escaped;
+            });
         });
 
         const weeklyBody = document.getElementById('weeklyTableBody');
@@ -164,7 +166,7 @@
             `;
         }
 
-        // TOP-3 Сортировка
+        // TOP-3 tayyorlash
         list.sort((a, b) => b.avgPercent - a.avgPercent);
         const topContainer = document.getElementById('topClasses');
         topContainer.innerHTML = '';
@@ -178,10 +180,7 @@
                 </div>
             `;
         });
-    }
-
-    // Автоматическая загрузка
-    loadData();
+    });
 </script>
 
 </body>
