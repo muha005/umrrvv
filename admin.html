@@ -1,187 +1,143 @@
 <!DOCTYPE html>
 <html lang="ru">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Панель директора (Онлайн)</title>
-    <style>
-        * { box-sizing: border-box; margin: 0; padding: 0; font-family: 'Segoe UI', Arial, sans-serif; }
-        body { background-color: #f8fafc; padding: 20px; color: #0f172a; }
-        .container { max-width: 1100px; margin: 0 auto; }
-        h1 { margin-bottom: 20px; font-size: 24px; color: #1e293b; }
-        .card { background: #ffffff; padding: 20px; border-radius: 10px; box-shadow: 0 1px 3px rgba(0,0,0,0.1); margin-bottom: 25px; }
-        .top-cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 15px; margin-top: 10px; }
-        .top-card { background: #eff6ff; border-left: 5px solid #2563eb; padding: 15px; border-radius: 8px; }
-        .top-card h3 { font-size: 18px; color: #1d4ed8; }
-        .top-card p { font-size: 14px; margin-top: 5px; color: #334155; }
-        table { width: 100%; border-collapse: collapse; margin-top: 15px; }
-        th, td { border: 1px solid #e2e8f0; padding: 12px; text-align: center; font-size: 14px; }
-        th { background-color: #f1f5f9; color: #475569; font-weight: 600; }
-        .badge { padding: 4px 8px; border-radius: 4px; font-weight: bold; font-size: 12px; color: white; }
-        .badge-warning { background-color: #d97706; }
-        .badge-danger { background-color: #dc2626; }
-        .badge-success { background-color: #16a34a; }
-        .status-online { color: #16a34a; font-weight: bold; font-size: 14px; float: right; }
-    </style>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Панель директора - Статистика</title>
+<style>
+* { box-sizing:border-box; margin:0; padding:0; font-family:'Segoe UI', Arial, sans-serif; }
+body { background:#f8fafc; padding:20px; color:#0f172a; }
+.container { max-width:1100px; margin:0 auto; }
+h1 { margin-bottom:15px; font-size:24px; color:#1e293b; }
+h2 { font-size:18px; }
+.toolbar { display:flex; gap:10px; flex-wrap:wrap; align-items:center; margin-bottom:20px; background:#fff; padding:15px; border-radius:10px; box-shadow:0 1px 3px rgba(0,0,0,.1); }
+.toolbar input { padding:8px 10px; border:1px solid #cbd5e1; border-radius:6px; font-size:15px; }
+.toolbar button { background:#0284c7; color:#fff; border:none; padding:9px 14px; border-radius:6px; cursor:pointer; }
+.live { margin-left:auto; font-size:13px; color:#16a34a; }
+.card { background:#fff; padding:20px; border-radius:10px; box-shadow:0 1px 3px rgba(0,0,0,.1); margin-bottom:25px; overflow-x:auto; }
+.sub { font-size:13px; color:#64748b; margin-top:4px; }
+.top-cards { display:grid; grid-template-columns:repeat(auto-fit,minmax(220px,1fr)); gap:15px; margin-top:12px; }
+.top-card { background:#eff6ff; border-left:5px solid #2563eb; padding:15px; border-radius:8px; }
+.top-card h3 { font-size:18px; color:#1d4ed8; } .top-card p { font-size:14px; margin-top:5px; color:#334155; }
+table { width:100%; border-collapse:collapse; margin-top:15px; }
+th, td { border:1px solid #e2e8f0; padding:10px; text-align:center; font-size:14px; }
+th { background:#f1f5f9; color:#475569; font-weight:600; }
+.badge { padding:4px 8px; border-radius:4px; font-weight:bold; font-size:12px; color:#fff; }
+.w { background:#d97706; } .d { background:#dc2626; } .s { background:#16a34a; } .g { background:#94a3b8; }
+.empty { color:#94a3b8; padding:15px 0; }
+@media print { .toolbar button, .live { display:none; } }
+</style>
 </head>
 <body>
-
 <div class="container">
-    <span class="status-online">● Live-Синхронизация</span>
-    <h1>Панель директора школы</h1>
+  <h1>Панель директора школы</h1>
+  <div class="toolbar">
+    <label for="datePick"><b>Дата:</b></label>
+    <input type="date" id="datePick">
+    <button onclick="setToday()">Сегодня</button>
+    <button onclick="window.print()">Печать</button>
+    <span class="live" id="live">● подключение...</span>
+  </div>
 
-    <!-- ТОП 3 КЛАССА -->
-    <div class="card">
-        <h2>ТОП-3 лучших классов (За неделю)</h2>
-        <div class="top-cards" id="topClasses"></div>
-    </div>
+  <div class="card">
+    <h2>ТОП-3 лучших классов (за неделю)</h2>
+    <div class="sub" id="weekRange"></div>
+    <div class="top-cards" id="topClasses"></div>
+  </div>
 
-    <!-- СТАЦИОНАР ЗА СЕГОДНЯ -->
-    <div class="card">
-        <h2>Мониторинг за сегодня</h2>
-        <table>
-            <thead>
-                <tr>
-                    <th>Класс</th>
-                    <th>Всего</th>
-                    <th>1-урок</th>
-                    <th>2-урок</th>
-                    <th>Посл. урок</th>
-                    <th>Опоздали</th>
-                    <th>Сбежали</th>
-                    <th>Посещаемость %</th>
-                </tr>
-            </thead>
-            <tbody id="todayTableBody"></tbody>
-        </table>
-    </div>
+  <div class="card">
+    <h2>Мониторинг за день: <span id="dayLabel"></span></h2>
+    <table><thead><tr>
+      <th>Класс</th><th>Всего</th><th>1-урок</th><th>2-урок</th><th>Посл. урок</th><th>Опоздали</th><th>Сбежали</th><th>Посещаемость %</th>
+    </tr></thead><tbody id="todayTableBody"></tbody></table>
+    <div class="empty" id="todayEmpty" style="display:none">За эту дату данных нет.</div>
+  </div>
 
-    <!-- ЕЖЕНЕДЕЛЬНЫЙ ОТЧЕТ -->
-    <div class="card">
-        <h2>Еженедельный отчет</h2>
-        <table>
-            <thead>
-                <tr>
-                    <th>Класс</th>
-                    <th>Средняя посещаемость %</th>
-                    <th>Всего опозданий</th>
-                    <th>Всего побегов</th>
-                </tr>
-            </thead>
-            <tbody id="weeklyTableBody"></tbody>
-        </table>
-    </div>
+  <div class="card">
+    <h2>Еженедельный отчет</h2>
+    <div class="sub" id="weekRange2"></div>
+    <table><thead><tr>
+      <th>Класс</th><th>Дней с данными</th><th>Средняя посещаемость %</th><th>Всего опозданий</th><th>Всего побегов</th>
+    </tr></thead><tbody id="weeklyTableBody"></tbody></table>
+    <div class="empty" id="weeklyEmpty" style="display:none">За эту неделю данных нет.</div>
+  </div>
 </div>
 
-<!-- Firebase SDK -->
-<script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
-<script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-database.js"></script>
-
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-database-compat.js"></script>
+<script src="config.js"></script>
 <script>
-    // Firebase sozlamalarini bu yerga qo'ying:
-    const firebaseConfig = {
-        databaseURL: "https://YOUR_PROJECT_ID-default-rtdb.firebaseio.com"
-    };
-    firebase.initializeApp(firebaseConfig);
-    const database = firebase.database();
+const $ = id => document.getElementById(id);
+const esc = s => String(s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+let allData = {};   // { 'YYYY-MM-DD': { classKey: record } }
 
-    const today = new Date().toISOString().split('T')[0];
+// ---- hisob-kitob ----
+function calc(r) {
+  const l1 = r.lesson1 ?? null, l2 = r.lesson2 ?? null, ll = r.lessonLast ?? null;
+  const maxPresent = Math.max(l1 || 0, l2 || 0);
+  const late = (l1 !== null && l2 !== null && l2 > l1) ? l2 - l1 : 0;
+  const escaped = (maxPresent > 0 && ll !== null && maxPresent > ll) ? maxPresent - ll : 0;
+  let percent = (maxPresent > 0 && r.total > 0) ? Math.min(100, Math.round(maxPresent / r.total * 100)) : 0;
+  return { l1, l2, ll, late, escaped, percent };
+}
+const fmt = v => v === null ? '-' : v;
 
-    // REAL-TIME UPDATES (Telefondan yuborilgani bilan avto yangilanadi)
-    database.ref('attendance').on('value', (snapshot) => {
-        const allData = snapshot.val() || {};
-        
-        // 1. Bugungi ma'lumotlar
-        const todayData = allData[today] || {};
-        const todayBody = document.getElementById('todayTableBody');
-        todayBody.innerHTML = '';
+// Haftaning Dushanba..Yakshanba sanalari
+function weekDates(dateStr) {
+  const d = new Date(dateStr + 'T00:00:00');
+  const shift = (d.getDay() + 6) % 7;          // Dushanba = 0
+  d.setDate(d.getDate() - shift);
+  return Array.from({ length: 7 }, (_, i) => { const x = new Date(d); x.setDate(d.getDate() + i); return localDate(x); });
+}
+const human = s => s.split('-').reverse().join('.');
 
-        Object.values(todayData).forEach(r => {
-            const l1 = r.lesson1 !== undefined && r.lesson1 !== null ? r.lesson1 : '-';
-            const l2 = r.lesson2 !== undefined && r.lesson2 !== null ? r.lesson2 : '-';
-            const lLast = r.lessonLast !== undefined && r.lessonLast !== null ? r.lessonLast : '-';
+// ---- ko'rsatish ----
+function render() {
+  const date = $('datePick').value || localDate();
+  $('dayLabel').textContent = human(date);
 
-            let late = (r.lesson1 !== null && r.lesson2 !== null && r.lesson2 > r.lesson1) ? (r.lesson2 - r.lesson1) : 0;
-            let maxPresent = Math.max(r.lesson1 || 0, r.lesson2 || 0);
-            let escaped = (maxPresent > 0 && r.lessonLast !== null && maxPresent > r.lessonLast) ? (maxPresent - r.lessonLast) : 0;
+  // Kunlik jadval
+  const rows = Object.values(allData[date] || {}).sort((a, b) => a.className.localeCompare(b.className, 'ru', { numeric: true }));
+  $('todayEmpty').style.display = rows.length ? 'none' : 'block';
+  $('todayTableBody').innerHTML = rows.map(r => {
+    const c = calc(r);
+    return `<tr><td><b>${esc(r.className)}</b></td><td>${r.total}</td><td>${fmt(c.l1)}</td><td>${fmt(c.l2)}</td><td>${fmt(c.ll)}</td>
+      <td><span class="badge w">+${c.late}</span></td><td><span class="badge d">-${c.escaped}</span></td>
+      <td><span class="badge s">${c.percent}%</span></td></tr>`;
+  }).join('');
 
-            let percent = 0;
-            if (maxPresent > 0 && r.total > 0) {
-                percent = Math.round((maxPresent / r.total) * 100);
-                if (percent > 100) percent = 100;
-            }
+  // Haftalik hisobot
+  const days = weekDates(date);
+  const range = `Неделя: ${human(days[0])} — ${human(days[6])}`;
+  $('weekRange').textContent = $('weekRange2').textContent = range;
+  const agg = {};
+  days.forEach(day => Object.values(allData[day] || {}).forEach(r => {
+    const c = calc(r);
+    const a = agg[r.className] ||= { sum: 0, n: 0, late: 0, escaped: 0 };
+    a.sum += c.percent; a.n++; a.late += c.late; a.escaped += c.escaped;
+  }));
+  const list = Object.entries(agg).map(([className, a]) => ({ className, days: a.n, avg: Math.round(a.sum / a.n), late: a.late, escaped: a.escaped }))
+    .sort((a, b) => b.avg - a.avg || a.escaped - b.escaped);
 
-            todayBody.innerHTML += `
-                <tr>
-                    <td><b>${r.className}</b></td>
-                    <td>${r.total}</td>
-                    <td>${l1}</td>
-                    <td>${l2}</td>
-                    <td>${lLast}</td>
-                    <td><span class="badge badge-warning">+${late}</span></td>
-                    <td><span class="badge badge-danger">-${escaped}</span></td>
-                    <td><span class="badge badge-success">${percent}%</span></td>
-                </tr>
-            `;
-        });
+  $('weeklyEmpty').style.display = list.length ? 'none' : 'block';
+  $('weeklyTableBody').innerHTML = list.map(i =>
+    `<tr><td><b>${esc(i.className)}</b></td><td>${i.days}</td><td><b>${i.avg}%</b></td><td>${i.late}</td><td>${i.escaped}</td></tr>`).join('');
+  $('topClasses').innerHTML = list.slice(0, 3).map((i, k) =>
+    `<div class="top-card"><h3>#${k + 1} Класс: ${esc(i.className)}</h3><p>Посещаемость: <b>${i.avg}%</b></p>
+     <p>Опозданий: ${i.late} | Побегов: ${i.escaped}</p></div>`).join('') || '<div class="empty">Нет данных</div>';
+}
 
-        // 2. Haftalik va Top-3 statistikani hisoblash
-        const classAggregates = {};
+function setToday() { $('datePick').value = localDate(); render(); }
+$('datePick').value = localDate();
+$('datePick').addEventListener('change', render);
 
-        Object.keys(allData).forEach(date => {
-            Object.values(allData[date]).forEach(r => {
-                if (!classAggregates[r.className]) {
-                    classAggregates[r.className] = { totalPercent: 0, count: 0, late: 0, escaped: 0 };
-                }
-
-                let maxPresent = Math.max(r.lesson1 || 0, r.lesson2 || 0);
-                let percent = (maxPresent > 0 && r.total > 0) ? Math.round((maxPresent / r.total) * 100) : 0;
-                if (percent > 100) percent = 100;
-
-                let late = (r.lesson1 !== null && r.lesson2 !== null && r.lesson2 > r.lesson1) ? (r.lesson2 - r.lesson1) : 0;
-                let escaped = (maxPresent > 0 && r.lessonLast !== null && maxPresent > r.lessonLast) ? (maxPresent - r.lessonLast) : 0;
-
-                classAggregates[r.className].totalPercent += percent;
-                classAggregates[r.className].count += 1;
-                classAggregates[r.className].late += late;
-                classAggregates[r.className].escaped += escaped;
-            });
-        });
-
-        const weeklyBody = document.getElementById('weeklyTableBody');
-        weeklyBody.innerHTML = '';
-        let list = [];
-
-        for (let cls in classAggregates) {
-            let avg = Math.round(classAggregates[cls].totalPercent / classAggregates[cls].count);
-            list.push({ className: cls, avgPercent: avg, late: classAggregates[cls].late, escaped: classAggregates[cls].escaped });
-
-            weeklyBody.innerHTML += `
-                <tr>
-                    <td><b>${cls}</b></td>
-                    <td><b>${avg}%</b></td>
-                    <td>${classAggregates[cls].late}</td>
-                    <td>${classAggregates[cls].escaped}</td>
-                </tr>
-            `;
-        }
-
-        // TOP-3 tayyorlash
-        list.sort((a, b) => b.avgPercent - a.avgPercent);
-        const topContainer = document.getElementById('topClasses');
-        topContainer.innerHTML = '';
-
-        list.slice(0, 3).forEach((item, index) => {
-            topContainer.innerHTML += `
-                <div class="top-card">
-                    <h3>#${index + 1} Класс: ${item.className}</h3>
-                    <p>Посещаемость: <b>${item.avgPercent}%</b></p>
-                    <p>Опозданий: ${item.late} | Побегов: ${item.escaped}</p>
-                </div>
-            `;
-        });
-    });
+// ---- real vaqt: ma'lumot kelishi bilan avtomatik yangilanadi ----
+db.ref('attendance').on('value', snap => {
+  allData = snap.val() || {};
+  $('live').textContent = '● онлайн, ' + new Date().toLocaleTimeString('ru-RU');
+  $('live').style.color = '#16a34a';
+  render();
+}, err => { $('live').textContent = '● ошибка подключения'; $('live').style.color = '#dc2626'; });
 </script>
-
 </body>
 </html>
