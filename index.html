@@ -3,25 +3,23 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Ввод посещаемости - Дежурный учитель</title>
+    <title>Ввод посещаемости</title>
     <style>
-        * { box-sizing: border-box; margin: 0; padding: 0; font-family: 'Segoe UI', Arial, sans-serif; }
-        body { background-color: #f1f5f9; padding: 20px; color: #0f172a; }
-        .container { max-width: 500px; margin: 30px auto; background: #ffffff; padding: 25px; border-radius: 12px; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.1); }
-        h2 { font-size: 20px; margin-bottom: 20px; text-align: center; color: #1e293b; }
-        .form-group { margin-bottom: 15px; }
-        label { display: block; font-weight: 600; margin-bottom: 6px; font-size: 14px; }
+        * { box-sizing: border-box; margin: 0; padding: 0; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; }
+        body { background-color: #f1f5f9; padding: 15px; color: #0f172a; }
+        .card { max-width: 450px; margin: 10px auto; background: #ffffff; padding: 20px; border-radius: 12px; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.1); }
+        h2 { font-size: 18px; margin-bottom: 15px; text-align: center; color: #1e293b; }
+        .form-group { margin-bottom: 12px; }
+        label { display: block; font-weight: 600; margin-bottom: 5px; font-size: 13px; }
         input, select { width: 100%; padding: 12px; border: 1px solid #cbd5e1; border-radius: 8px; font-size: 15px; outline: none; }
-        input:focus, select:focus { border-color: #2563eb; }
         button { width: 100%; background: #2563eb; color: white; border: none; padding: 14px; border-radius: 8px; font-size: 16px; font-weight: 600; cursor: pointer; margin-top: 10px; }
-        button:hover { background: #1d4ed8; }
-        .alert { display: none; margin-top: 15px; padding: 12px; border-radius: 8px; font-size: 14px; text-align: center; font-weight: 600; }
-        .alert-success { background: #dcfce7; color: #15803d; }
+        button:active { background: #1d4ed8; }
+        .alert { display: none; margin-top: 15px; padding: 12px; border-radius: 8px; font-size: 14px; text-align: center; font-weight: 600; background: #dcfce7; color: #15803d; }
     </style>
 </head>
 <body>
 
-<div class="container">
+<div class="card">
     <h2>Форма отметки урока</h2>
     <form id="lessonForm">
         <div class="form-group">
@@ -29,7 +27,7 @@
             <input type="text" id="className" placeholder="Например: 9-А или 11-Б" required>
         </div>
         <div class="form-group">
-            <label>Общее количество учащихся в классе:</label>
+            <label>Общее количество учащихся:</label>
             <input type="number" id="totalCount" min="1" placeholder="Например: 21" required>
         </div>
         <div class="form-group">
@@ -44,56 +42,65 @@
             <label>Присутствует учащихся на уроке:</label>
             <input type="number" id="presentCount" min="0" placeholder="Введите количество" required>
         </div>
-        <button type="submit">Отправить данные</button>
+        <button type="submit" id="subBtn">Отправить директору</button>
     </form>
-    <div id="alertMsg" class="alert alert-success">Данные успешно сохранены!</div>
+    <div id="alertMsg" class="alert">Данные отправлены!</div>
 </div>
 
+<!-- Firebase SDK -->
+<script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
+<script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-database.js"></script>
+
 <script>
+    // Firebase sozlamalarini bu yerga qo'ying:
+    const firebaseConfig = {
+        databaseURL: "https://YOUR_PROJECT_ID-default-rtdb.firebaseio.com"
+    };
+    firebase.initializeApp(firebaseConfig);
+    const database = firebase.database();
+
     document.getElementById('lessonForm').addEventListener('submit', function(e) {
         e.preventDefault();
+        const btn = document.getElementById('subBtn');
+        btn.disabled = true;
+        btn.innerText = 'Сохранение...';
 
-        const className = document.getElementById('className').value.trim().toUpperCase();
+        const className = document.getElementById('className').value.trim().toUpperCase().replace('.', '_');
         const total = parseInt(document.getElementById('totalCount').value);
         const lessonType = document.getElementById('lessonType').value;
         const count = parseInt(document.getElementById('presentCount').value);
         const today = new Date().toISOString().split('T')[0];
 
-        let db = JSON.parse(localStorage.getItem('attendanceDB')) || [];
-        let record = db.find(r => r.date === today && r.className === className);
+        const ref = database.ref(`attendance/${today}/${className}`);
 
-        if (!record) {
-            record = {
-                date: today,
+        ref.once('value').then(snapshot => {
+            let data = snapshot.val() || {
                 className: className,
                 total: total,
                 lesson1: null,
                 lesson2: null,
                 lessonLast: null
             };
-            db.push(record);
-        }
 
-        // Обновляем общее кол-во
-        record.total = total;
+            data.total = total;
 
-        // Записываем данные в зависимости от урока
-        if (lessonType === '1') {
-            record.lesson1 = count;
-        } else if (lessonType === '2') {
-            record.lesson2 = count;
-        } else if (lessonType === 'last') {
-            record.lessonLast = count;
-        }
+            if (lessonType === '1') data.lesson1 = count;
+            else if (lessonType === '2') data.lesson2 = count;
+            else if (lessonType === 'last') data.lessonLast = count;
 
-        localStorage.setItem('attendanceDB', JSON.stringify(db));
-
-        // Показ уведомления
-        const alert = document.getElementById('alertMsg');
-        alert.style.display = 'block';
-        setTimeout(() => alert.style.display = 'none', 3000);
-
-        document.getElementById('presentCount').value = '';
+            return ref.set(data);
+        }).then(() => {
+            btn.disabled = false;
+            btn.innerText = 'Отправить директору';
+            const alert = document.getElementById('alertMsg');
+            alert.style.display = 'block';
+            setTimeout(() => alert.style.display = 'none', 3000);
+            document.getElementById('presentCount').value = '';
+        }).catch(err => {
+            alert('Ошибка: ' + err.message);
+            btn.disabled = false;
+            btn.innerText = 'Отправить директору';
+        });
     });
 </script>
 
