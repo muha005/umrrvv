@@ -1,0 +1,188 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Панель директора - Статистика</title>
+    <style>
+        * { box-sizing: border-box; margin: 0; padding: 0; font-family: 'Segoe UI', Arial, sans-serif; }
+        body { background-color: #f8fafc; padding: 20px; color: #0f172a; }
+        .container { max-width: 1100px; margin: 0 auto; }
+        h1 { margin-bottom: 20px; font-size: 24px; color: #1e293b; }
+        .card { background: #ffffff; padding: 20px; border-radius: 10px; box-shadow: 0 1px 3px rgba(0,0,0,0.1); margin-bottom: 25px; }
+        .top-cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 15px; margin-top: 10px; }
+        .top-card { background: #eff6ff; border-left: 5px solid #2563eb; padding: 15px; border-radius: 8px; }
+        .top-card h3 { font-size: 18px; color: #1d4ed8; }
+        .top-card p { font-size: 14px; margin-top: 5px; color: #334155; }
+        table { width: 100%; border-collapse: collapse; margin-top: 15px; }
+        th, td { border: 1px solid #e2e8f0; padding: 12px; text-align: center; font-size: 14px; }
+        th { background-color: #f1f5f9; color: #475569; font-weight: 600; }
+        .badge { padding: 4px 8px; border-radius: 4px; font-weight: bold; font-size: 12px; color: white; }
+        .badge-warning { background-color: #d97706; }
+        .badge-danger { background-color: #dc2626; }
+        .badge-success { background-color: #16a34a; }
+        .badge-secondary { background-color: #94a3b8; }
+        .btn-refresh { background: #0284c7; color: white; border: none; padding: 8px 16px; border-radius: 6px; cursor: pointer; float: right; }
+    </style>
+</head>
+<body>
+
+<div class="container">
+    <button class="btn-refresh" onclick="loadData()">Обновить данные</button>
+    <h1>Панель директора школы</h1>
+
+    <!-- ТОП 3 КЛАССА -->
+    <div class="card">
+        <h2>ТОП-3 лучших классов (За неделю)</h2>
+        <div class="top-cards" id="topClasses">
+            <!-- Динамически заполняется -->
+        </div>
+    </div>
+
+    <!-- СТАЦИОНАР ЗА СЕГОДНЯ -->
+    <div class="card">
+        <h2>Мониторинг за сегодня</h2>
+        <table>
+            <thead>
+                <tr>
+                    <th>Класс</th>
+                    <th>Всего</th>
+                    <th>1-урок</th>
+                    <th>2-урок</th>
+                    <th>Посл. урок</th>
+                    <th>Опоздали</th>
+                    <th>Сбежали</th>
+                    <th>Посещаемость %</th>
+                </tr>
+            </thead>
+            <tbody id="todayTableBody"></tbody>
+        </table>
+    </div>
+
+    <!-- ЕЖЕНЕДЕЛЬНЫЙ ОТЧЕТ -->
+    <div class="card">
+        <h2>Еженедельный отчет</h2>
+        <table>
+            <thead>
+                <tr>
+                    <th>Класс</th>
+                    <th>Средняя посещаемость %</th>
+                    <th>Всего опозданий</th>
+                    <th>Всего побегов</th>
+                </tr>
+            </thead>
+            <tbody id="weeklyTableBody"></tbody>
+        </table>
+    </div>
+</div>
+
+<script>
+    function loadData() {
+        const db = JSON.parse(localStorage.getItem('attendanceDB')) || [];
+        const today = new Date().toISOString().split('T')[0];
+
+        // 1. Сегодняшние данные
+        const todayBody = document.getElementById('todayTableBody');
+        todayBody.innerHTML = '';
+        const todayRecords = db.filter(r => r.date === today);
+
+        todayRecords.forEach(r => {
+            const l1 = r.lesson1 !== null ? r.lesson1 : '-';
+            const l2 = r.lesson2 !== null ? r.lesson2 : '-';
+            const lLast = r.lessonLast !== null ? r.lessonLast : '-';
+
+            // Расчет опоздавших
+            let late = 0;
+            if (r.lesson1 !== null && r.lesson2 !== null && r.lesson2 > r.lesson1) {
+                late = r.lesson2 - r.lesson1;
+            }
+
+            // Расчет сбежавших
+            let escaped = 0;
+            let maxPresent = Math.max(r.lesson1 || 0, r.lesson2 || 0);
+            if (maxPresent > 0 && r.lessonLast !== null && maxPresent > r.lessonLast) {
+                escaped = maxPresent - r.lessonLast;
+            }
+
+            // Расчет процента
+            let percent = 0;
+            if (maxPresent > 0 && r.total > 0) {
+                percent = Math.round((maxPresent / r.total) * 100);
+                if (percent > 100) percent = 100;
+            }
+
+            todayBody.innerHTML += `
+                <tr>
+                    <td><b>${r.className}</b></td>
+                    <td>${r.total}</td>
+                    <td>${l1}</td>
+                    <td>${l2}</td>
+                    <td>${lLast}</td>
+                    <td><span class="badge badge-warning">+${late}</span></td>
+                    <td><span class="badge badge-danger">-${escaped}</span></td>
+                    <td><span class="badge badge-success">${percent}%</span></td>
+                </tr>
+            `;
+        });
+
+        // 2. Недельная статистика и ТОП-3
+        const classAggregates = {};
+
+        db.forEach(r => {
+            if (!classAggregates[r.className]) {
+                classAggregates[r.className] = { totalPercent: 0, count: 0, late: 0, escaped: 0 };
+            }
+
+            let maxPresent = Math.max(r.lesson1 || 0, r.lesson2 || 0);
+            let percent = (maxPresent > 0 && r.total > 0) ? Math.round((maxPresent / r.total) * 100) : 0;
+            if (percent > 100) percent = 100;
+
+            let late = (r.lesson1 !== null && r.lesson2 !== null && r.lesson2 > r.lesson1) ? (r.lesson2 - r.lesson1) : 0;
+            let escaped = (maxPresent > 0 && r.lessonLast !== null && maxPresent > r.lessonLast) ? (maxPresent - r.lessonLast) : 0;
+
+            classAggregates[r.className].totalPercent += percent;
+            classAggregates[r.className].count += 1;
+            classAggregates[r.className].late += late;
+            classAggregates[r.className].escaped += escaped;
+        });
+
+        const weeklyBody = document.getElementById('weeklyTableBody');
+        weeklyBody.innerHTML = '';
+        let list = [];
+
+        for (let cls in classAggregates) {
+            let avg = Math.round(classAggregates[cls].totalPercent / classAggregates[cls].count);
+            list.push({ className: cls, avgPercent: avg, late: classAggregates[cls].late, escaped: classAggregates[cls].escaped });
+
+            weeklyBody.innerHTML += `
+                <tr>
+                    <td><b>${cls}</b></td>
+                    <td><b>${avg}%</b></td>
+                    <td>${classAggregates[cls].late}</td>
+                    <td>${classAggregates[cls].escaped}</td>
+                </tr>
+            `;
+        }
+
+        // TOP-3 Сортировка
+        list.sort((a, b) => b.avgPercent - a.avgPercent);
+        const topContainer = document.getElementById('topClasses');
+        topContainer.innerHTML = '';
+
+        list.slice(0, 3).forEach((item, index) => {
+            topContainer.innerHTML += `
+                <div class="top-card">
+                    <h3>#${index + 1} Класс: ${item.className}</h3>
+                    <p>Посещаемость: <b>${item.avgPercent}%</b></p>
+                    <p>Опозданий: ${item.late} | Побегов: ${item.escaped}</p>
+                </div>
+            `;
+        });
+    }
+
+    // Автоматическая загрузка
+    loadData();
+</script>
+
+</body>
+</html>
